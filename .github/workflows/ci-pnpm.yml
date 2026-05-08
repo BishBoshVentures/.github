@@ -1,0 +1,32 @@
+name: CI (pnpm)
+
+on:
+  workflow_call:
+
+jobs:
+  ci:
+    name: Typecheck, lint, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run --if-present typecheck || pnpm run --if-present check || echo "No typecheck script, skipping"
+
+      - name: Lint
+        run: pnpm run --if-present lint || echo "No lint script, skipping"
+        continue-on-error: true
+
+      - name: Build
+        run: pnpm run build

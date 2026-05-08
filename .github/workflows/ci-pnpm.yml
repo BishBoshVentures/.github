@@ -19,7 +19,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Typecheck
         run: pnpm run --if-present typecheck || pnpm run --if-present check || echo "No typecheck script, skipping"

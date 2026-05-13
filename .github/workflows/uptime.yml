@@ -1,0 +1,89 @@
+name: Uptime check
+
+on:
+  schedule:
+    # Every 5 minutes
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Check sites
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        site:
+          - { name: "CheatMode", url: "https://usecheatmode.com" }
+          - { name: "OneFinePlay", url: "https://onefineplay.com" }
+          - { name: "BishBosh", url: "https://bishbosh.ai" }
+          - { name: "FactorThirty", url: "https://factorthirty.com" }
+          - { name: "JamesBish", url: "https://jamesbishop.co.uk" }
+          - { name: "RicksMoneyClub", url: "https://ricksmoneyclub.com" }
+          - { name: "Careering", url: "https://careering.co.uk" }
+          - { name: "RightFromWrong", url: "https://rightfromwrong.co.uk" }
+          - { name: "JacobDunne", url: "https://jacobdunne.com" }
+          - { name: "Beach", url: "https://beachapp.co.uk" }
+
+    steps:
+      - name: Check ${{ matrix.site.name }}
+        id: check
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            --user-agent "BishBosh-UptimeBot/1.0" \
+            "${{ matrix.site.url }}")
+
+          echo "status=$HTTP_STATUS" >> $GITHUB_OUTPUT
+          echo "${{ matrix.site.name }}: HTTP $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "FAIL=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Open issue on failure
+        if: steps.check.outputs.FAIL == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const site = '${{ matrix.site.name }}';
+            const url = '${{ matrix.site.url }}';
+            const status = '${{ steps.check.outputs.status }}';
+            const title = `[Uptime] ${site} returned HTTP ${status}`;
+
+            // Check if an open issue already exists for this site
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'uptime',
+            });
+
+            const existing = issues.data.find(i => i.title.includes(site));
+            if (existing) {
+              console.log(`Issue already open: #${existing.number}`);
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: [
+                `## Site down: ${site}`,
+                '',
+                `**URL:** ${url}`,
+                `**HTTP status:** ${status} (expected 200)`,
+                `**Detected at:** ${new Date().toUTCString()}`,
+                '',
+                '### What to check',
+                '1. Open the URL in a browser',
+                '2. Check the latest Vercel deployment at https://vercel.com/bishbosh',
+                '3. Check build logs for any errors',
+                '4. If it is a 404 on every page, look for a Next.js App Router conflict (see the May 2026 incident)',
+                '',
+                '_This issue was opened automatically by the uptime workflow._',
+              ].join('\n'),
+              labels: ['uptime', 'incident'],
+            });

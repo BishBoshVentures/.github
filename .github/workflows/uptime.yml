@@ -10,6 +10,8 @@ jobs:
   check:
     name: Check sites
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +33,7 @@ jobs:
         run: |
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 15 \
+            --location \
             --user-agent "BishBosh-UptimeBot/1.0" \
             "${{ matrix.site.url }}")
 

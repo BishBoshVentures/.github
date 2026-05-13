@@ -31,11 +31,15 @@ jobs:
       - name: Check ${{ matrix.site.name }}
         id: check
         run: |
+          # Use || echo "000" so curl DNS/SSL failures don't exit the step
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 15 \
             --location \
             --user-agent "BishBosh-UptimeBot/1.0" \
-            "${{ matrix.site.url }}")
+            "${{ matrix.site.url }}" 2>/dev/null || echo "000")
+
+          # Guard against empty output
+          HTTP_STATUS="${HTTP_STATUS:-000}"
 
           echo "status=$HTTP_STATUS" >> $GITHUB_OUTPUT
           echo "${{ matrix.site.name }}: HTTP $HTTP_STATUS"

@@ -1,0 +1,55 @@
+name: Codex Auto-fix (reusable)
+
+on:
+  workflow_call:
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            Codex (chatgpt-codex-connector[bot]) has just reviewed this PR and posted findings.
+
+            Your job is to fix every finding Codex has raised. Follow these steps exactly:
+
+            1. Run this command to get all Codex review comments on this PR:
+               gh pr view ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --json reviews,reviewComments
+
+            2. Extract all findings from the reviewer "chatgpt-codex-connector[bot]" only. Ignore any comments from other reviewers.
+
+            3. For each finding:
+               - Locate the exact file and line referenced
+               - Understand the problem Codex has described
+               - Implement the fix
+               - Do not over-engineer — fix exactly what Codex asked for
+
+            4. Once all fixable findings are addressed, stage and commit:
+               git add -A
+               git commit -m "fix: address Codex review findings [auto]"
+               git push
+
+            5. Post a single PR comment summarising:
+               - What was fixed (list each finding and what you did)
+               - Anything you could not safely fix autonomously and why (so the developer can handle it manually)
+
+            Rules:
+            - Only act on findings from chatgpt-codex-connector[bot]
+            - Do not refactor or improve anything outside the scope of Codex's findings
+            - If there are no actionable findings, post a comment saying "No actionable Codex findings to fix" and exit
+            - If you cannot push (e.g. branch is protected), post a comment with the proposed changes as a diff instead

@@ -16,16 +16,23 @@ jobs:
       fail-fast: false
       matrix:
         site:
+          - { name: "BishBoshVentures", url: "https://bishboshventures.com" }
           - { name: "CheatMode", url: "https://usecheatmode.com" }
-          - { name: "OneFinePlay", url: "https://onefineplay.com" }
-          - { name: "BishBosh", url: "https://bishbosh.ai" }
-          - { name: "FactorThirty", url: "https://factorthirty.com" }
-          - { name: "JamesBish", url: "https://jamesbishop.co.uk" }
+          - { name: "JacobDunne", url: "https://jacobdunne.co.uk" }
+          - { name: "JamesBish", url: "https://jamesbish.com" }
+          - { name: "PenguinHipHop", url: "https://penguinhiphop.com" }
           - { name: "RicksMoneyClub", url: "https://ricksmoneyclub.com" }
-          - { name: "Careering", url: "https://careering.co.uk" }
-          - { name: "RightFromWrong", url: "https://rightfromwrong.co.uk" }
-          - { name: "JacobDunne", url: "https://jacobdunne.com" }
-          - { name: "Beach", url: "https://beachapp.co.uk" }
+          - { name: "RightFromWrong", url: "https://rightfromwrong.uk" }
+          - { name: "Tuppence", url: "https://sharetuppence.com" }
+          - { name: "BishBosh", url: "https://bishbosh.ai" }
+          - { name: "ShotSpot", url: "https://shotspot-production.up.railway.app" }
+          - { name: "FindingAFourth", url: "https://findingafourth.com" }
+          - { name: "Futureproofing", url: "https://futureproofingproject.com" }
+          - { name: "OneFinePlay", url: "https://onefineplay.com" }
+          - { name: "Beach", url: "https://beach-production-e03c.up.railway.app" }
+          - { name: "Careering", url: "https://careering.club" }
+          - { name: "FactorThirty", url: "https://factorthirty.com" }
+          - { name: "Rumbana", url: "https://drinkrumbana.com" }
 
     steps:
       - name: Check ${{ matrix.site.name }}

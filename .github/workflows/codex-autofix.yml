@@ -23,6 +23,10 @@ jobs:
       - uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Pin a current model. The action's old default (claude-sonnet-4-20250514)
+          # has been retired and now returns 404, failing every run. Bump this when
+          # claude-sonnet-4-6 is itself deprecated.
+          model: claude-sonnet-4-6
           allowed_bots: "chatgpt-codex-connector[bot]"
           direct_prompt: |
             Codex (chatgpt-codex-connector[bot]) has just reviewed this PR and posted findings.

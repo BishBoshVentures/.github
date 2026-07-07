@@ -1,0 +1,116 @@
+name: HQ changelog draft
+
+# Reusable, org-wide workflow: draft an HQ changelog entry from a merged PR.
+#
+# The @bishboshventures/hq brick owns the summariser, schema, and ingest; a
+# consumer wires this in with ~15 lines (see below) instead of re-implementing
+# the script. Entries land as DRAFT for a human to review and publish in HQ.
+#
+# Caller (in the consumer repo, e.g. .github/workflows/changelog.yml):
+#
+#   name: Changelog draft from merged PR
+#   on:
+#     pull_request:
+#       types: [closed]
+#       branches: [main]        # or [staging]
+#   jobs:
+#     draft:
+#       if: ${{ github.event.pull_request.merged == true }}
+#       permissions:
+#         contents: read
+#         pull-requests: read
+#       uses: BishBoshVentures/.github/.github/workflows/changelog.yml@main
+#       with:
+#         pr-number: ${{ github.event.pull_request.number }}
+#         scope-id: rmc                      # this app's HQ scopeId
+#         project-name: Rick's Money Club    # optional, shapes the copy
+#       secrets:
+#         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+#         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+#         PACKAGES_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+
+on:
+  workflow_call:
+    inputs:
+      pr-number:
+        description: The merged PR number (github.event.pull_request.number).
+        required: true
+        type: string
+      scope-id:
+        description: The consumer's HQ scopeId (the scope entries are written under).
+        required: true
+        type: string
+      project-name:
+        description: Human-readable product name; shapes the changelog copy.
+        required: false
+        type: string
+        default: ""
+      status:
+        description: Publish state for new entries — draft (default) or published.
+        required: false
+        type: string
+        default: draft
+      model:
+        description: Override the summariser model (default claude-opus-4-8).
+        required: false
+        type: string
+        default: ""
+      node-version:
+        required: false
+        type: string
+        default: "20"
+    secrets:
+      DATABASE_URL:
+        description: Neon connection string for the consumer's database.
+        required: true
+      ANTHROPIC_API_KEY:
+        description: Anthropic API key (org-wide secret — already available to every repo).
+        required: true
+      PACKAGES_TOKEN:
+        description: GitHub token that can read @bishboshventures packages (for pnpm install).
+        required: true
+
+jobs:
+  draft:
+    name: Draft changelog entry
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Idempotent per PR at the DB layer (hq_changelog_source_uq), so a re-run
+    # never double-posts — no cancel-in-progress needed.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+
+      # Install the consumer's own deps so the brick resolves at the version
+      # this app has pinned (matching its applied migration) and its Postgres
+      # driver is present — `npx @bishboshventures/hq` in a bare temp dir would
+      # not pull the optional @neondatabase/serverless / postgres peer.
+      - name: Install dependencies
+        env:
+          GITHUB_PACKAGES_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Gather PR context
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr view "${{ inputs.pr-number }}" \
+            --repo "${{ github.repository }}" \
+            --json number,title,body,url,mergedAt,author,commits,files \
+            > pr.json
+
+      - name: Draft changelog entry
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HQ_SCOPE_ID: ${{ inputs.scope-id }}
+          HQ_PROJECT_NAME: ${{ inputs.project-name }}
+          HQ_CHANGELOG_STATUS: ${{ inputs.status }}
+          HQ_CHANGELOG_MODEL: ${{ inputs.model }}
+        run: pnpm exec hq changelog:from-pr --pr pr.json

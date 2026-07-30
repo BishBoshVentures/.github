@@ -24,6 +24,7 @@ name: HQ changelog draft
 #         pr-number: ${{ github.event.pull_request.number }}
 #         scope-id: rmc                      # this app's HQ scopeId
 #         project-name: Rick's Money Club    # optional, shapes the copy
+#         working-directory: apps/app        # pnpm WORKSPACES ONLY — see below
 #       secrets:
 #         DATABASE_URL: ${{ secrets.DATABASE_URL }}
 #         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -59,6 +60,22 @@ on:
         required: false
         type: string
         default: "20"
+      working-directory:
+        description: >-
+          Directory to run the hq CLI from. Leave at "." for a single-package repo
+          (RicksMoneyClub). In a pnpm WORKSPACE, set it to the package that declares
+          @bishboshventures/hq — e.g. "apps/app" for Careering. pnpm links a
+          dependency's binary into the node_modules/.bin of the package that declares
+          it, NOT the workspace root, so `pnpm exec hq` from the root fails with
+          `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "hq" not found`. Careering hit
+          exactly that when it moved to apps/app: the workflow had worked as a
+          single-package repo and broke silently on the layout change, because the
+          only symptom was a workflow nobody was watching going red.
+          Install still runs at the repo root — a pnpm workspace requires that for
+          --frozen-lockfile — so only the CLI step honours this.
+        required: false
+        type: string
+        default: "."
     secrets:
       DATABASE_URL:
         description: Neon connection string for the consumer's database.
@@ -105,7 +122,10 @@ jobs:
             --json number,title,body,url,mergedAt,author,commits,files \
             > pr.json
 
+      # pr.json is written at the repo root by the step above, so it is passed as an
+      # absolute path — working-directory may move this step into a sub-package.
       - name: Draft changelog entry
+        working-directory: ${{ inputs.working-directory }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -113,4 +133,29 @@ jobs:
           HQ_PROJECT_NAME: ${{ inputs.project-name }}
           HQ_CHANGELOG_STATUS: ${{ inputs.status }}
           HQ_CHANGELOG_MODEL: ${{ inputs.model }}
-        run: pnpm exec hq changelog:from-pr --pr pr.json
+        run: |
+          # Fail with something actionable. `pnpm exec` on a missing binary reports
+          # ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL, which says nothing about workspaces
+          # and sent one investigation to the wrong layer entirely (an unrelated
+          # ${GITHUB_PACKAGES_TOKEN} warning in the same log looked like the cause;
+          # the install had in fact succeeded).
+          if [ ! -x node_modules/.bin/hq ]; then
+            echo "::error::hq CLI not found in '$PWD'."
+            echo "@bishboshventures/hq is not installed for this directory."
+            echo ""
+            echo "In a pnpm workspace, pnpm links a package's binaries into the"
+            echo "node_modules/.bin of the package that DECLARES the dependency, not the"
+            echo "workspace root. Set this workflow's working-directory input to that"
+            echo "package (e.g. working-directory: apps/app)."
+            echo ""
+            echo "Directories that do have the binary:"
+            # maxdepth 5, because ./apps/app/node_modules/.bin/hq is five levels down
+            # and the obvious 4 finds nothing in exactly the layout this error exists
+            # to explain — an empty hint under a "here is where it is" heading.
+            # Portable on purpose: no find -printf (GNU-only), so this can be run and
+            # checked on a developer machine rather than only on the runner.
+            find . -maxdepth 5 -path '*/node_modules/.bin/hq' -not -path '*/.pnpm/*' 2>/dev/null \
+              | sed -e 's#/node_modules/.bin/hq$##' -e 's#^#  #' || true
+            exit 1
+          fi
+          pnpm exec hq changelog:from-pr --pr "$GITHUB_WORKSPACE/pr.json"

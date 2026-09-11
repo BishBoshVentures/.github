@@ -25,3 +25,8 @@ jobs:
       - uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Pin a current model, as codex-autofix.yml does. Without it the action
+          # falls back to its retired default (claude-sonnet-4-20250514) and every
+          # @claude run fails with API Error 404 not_found_error (seen on
+          # jamesbishbosh/Careering run 34614526373, 11 Sep 2026).
+          model: claude-sonnet-4-6

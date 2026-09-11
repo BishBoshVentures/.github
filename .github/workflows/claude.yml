@@ -2,6 +2,13 @@ name: Claude Code (reusable)
 
 on:
   workflow_call:
+    # Declared so a caller OUTSIDE this org (e.g. jamesbishbosh/Careering, moved
+    # to a personal account) can pass the key explicitly: `secrets: inherit`
+    # only reaches reusable workflows in the same organisation or enterprise.
+    # Optional, so org repos that use `secrets: inherit` keep working unchanged.
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
 
 jobs:
   claude:
